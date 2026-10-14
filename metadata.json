@@ -1,0 +1,8 @@
+{
+  "name": "Catatan Penjualan Cepat (Mobile Sales Tracker)",
+  "description": "Aplikasi pencatatan otomatis transaksi penjualan mobile-ready dengan analisis tabel data partner, tipe barang, dan kuantitas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
