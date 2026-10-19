@@ -573,7 +573,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                   </div>
                 </th>
                 <th className="py-3 px-3.5 text-center">Status</th>
-                <th className="py-3 px-3.5 text-center w-28">Aksi</th>
+                <th className="py-3 px-3.5 text-center w-40">Aksi (Revisi / Hapus)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -633,20 +633,29 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                     {getStatusBadge(sale.status)}
                   </td>
                   <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button
+                        onClick={() => onEdit(sale)}
+                        className="px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300/80 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                        title="Revisi / Ubah Data Transaksi Ini (Klik untuk mengedit)"
+                      >
+                        <Edit2 className="w-3 h-3 text-amber-700" />
+                        <span>Revisi</span>
+                      </button>
+                      <button
+                        onClick={() => onDelete(sale.id)}
+                        className="px-2 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                        title="Hapus Transaksi Ini (Jika Ada Kesalahan)"
+                      >
+                        <Trash2 className="w-3 h-3 text-rose-600" />
+                        <span>Hapus</span>
+                      </button>
                       <button
                         onClick={() => sendSaleViaWhatsApp(sale)}
                         className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
                         title="Kirim Nota ke WhatsApp"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => copyRowSummary(sale)}
-                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                        title="Salin Rincian"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => onDuplicate(sale)}
@@ -656,18 +665,11 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                         <ExternalLink className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => onEdit(sale)}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                        title="Ubah Data"
+                        onClick={() => copyRowSummary(sale)}
+                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                        title="Salin Rincian"
                       >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => onDelete(sale.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                        title="Hapus"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Copy className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </td>
@@ -784,21 +786,25 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                   </button>
                   <button
                     onClick={() => onDuplicate(sale)}
-                    className="px-2 py-1 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg text-xs font-medium"
+                    className="px-2 py-1 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg text-xs font-medium cursor-pointer"
                   >
                     Pesan Ulang
                   </button>
                   <button
                     onClick={() => onEdit(sale)}
-                    className="px-2 py-1 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-medium"
+                    className="px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300/80 rounded-lg flex items-center gap-1 cursor-pointer"
+                    title="Revisi Data Transaksi"
                   >
-                    Ubah
+                    <Edit2 className="w-3 h-3 text-amber-700" />
+                    <span>Revisi</span>
                   </button>
                   <button
                     onClick={() => onDelete(sale.id)}
-                    className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg text-xs"
+                    className="px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 border border-rose-200/60 rounded-lg flex items-center gap-1 cursor-pointer"
+                    title="Hapus Transaksi"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3 h-3 text-rose-600" />
+                    <span>Hapus</span>
                   </button>
                 </div>
               </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, Plus, Minus, Building2, Package, Hash, DollarSign, Calendar, Clock, FileText, ChevronRight } from 'lucide-react';
+import { X, Check, Plus, Minus, Building2, Package, Hash, DollarSign, Calendar, Clock, FileText, ChevronRight, Edit3, Trash2 } from 'lucide-react';
 import { SaleRecord } from '../types/sales';
 import { formatRupiah } from '../utils/storage';
 import { classifyHardware, KNOWN_BRANDS, KNOWN_CATEGORIES } from '../utils/hardwareClassifier';
@@ -12,6 +12,7 @@ interface SaleFormModalProps {
   editingId?: string | null;
   existingPartners: string[];
   existingItemTypes: string[];
+  onDelete?: (id: string) => void;
 }
 
 const COMMON_UNITS = [
@@ -33,6 +34,7 @@ export const SaleFormModal: React.FC<SaleFormModalProps> = ({
   editingId,
   existingPartners,
   existingItemTypes,
+  onDelete,
 }) => {
   const [partner, setPartner] = useState('');
   const [itemType, setItemType] = useState('');
@@ -157,17 +159,26 @@ export const SaleFormModal: React.FC<SaleFormModalProps> = ({
         onClick={e => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+        <div className={`px-5 py-4 border-b ${editingId ? 'bg-amber-50/80 border-amber-200/80' : 'bg-slate-50/70 border-slate-100'} flex items-center justify-between`}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
-              {editingId ? '✎' : '+'}
+            <div className={`w-9 h-9 rounded-xl ${editingId ? 'bg-amber-600' : 'bg-emerald-600'} text-white flex items-center justify-center font-bold text-sm shadow-xs`}>
+              {editingId ? <Edit3 className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 text-base">
-                {editingId ? 'Ubah Catatan Penjualan' : 'Form Lapor Penjualan Baru'}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  {editingId ? 'Revisi / Ubah Data Penjualan' : 'Form Lapor Penjualan Baru'}
+                </h3>
+                {editingId && (
+                  <span className="text-[10px] font-mono font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full border border-amber-300">
+                    ID: {editingId}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-500">
-                Lengkapi partner, tipe barang, dan jumlah kuantitas
+                {editingId
+                  ? 'Perbaiki partner, tipe barang, kuantitas, harga, atau status jika ada kesalahan'
+                  : 'Lengkapi partner, tipe barang, dan jumlah kuantitas'}
               </p>
             </div>
           </div>
@@ -181,6 +192,18 @@ export const SaleFormModal: React.FC<SaleFormModalProps> = ({
 
         {/* Modal Form Body */}
         <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 custom-scrollbar flex-1">
+          {editingId && (
+            <div className="p-3 bg-amber-50 border border-amber-300/80 rounded-xl text-xs text-amber-900 flex items-start gap-2.5 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-amber-500 mt-1 shrink-0 animate-pulse" />
+              <div>
+                <p className="font-bold text-amber-950">Mode Revisi: Transaksi #{editingId}</p>
+                <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                  Data transaksi lama telah dimuat ke kolom di bawah. Silakan perbaiki data yang keliru lalu klik tombol <strong>"Simpan Revisi Data"</strong>.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Tanggal & Waktu */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
@@ -457,21 +480,44 @@ export const SaleFormModal: React.FC<SaleFormModalProps> = ({
           </div>
 
           {/* Modal Actions */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl text-sm font-semibold shadow-sm shadow-emerald-600/30 flex items-center gap-2 transition-all cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              <span>{editingId ? 'Simpan Perubahan' : 'Catat Penjualan'}</span>
-            </button>
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2.5">
+            {editingId && onDelete ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDelete(editingId);
+                }}
+                className="px-3.5 py-2.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+                title="Hapus transaksi ini jika ada kesalahan fatal"
+              >
+                <Trash2 className="w-4 h-4 text-rose-600" />
+                <span>Hapus Transaksi</span>
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className={`px-5 sm:px-6 py-2.5 ${
+                  editingId
+                    ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/30'
+                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30'
+                } active:scale-98 text-white rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 transition-all cursor-pointer`}
+              >
+                <Check className="w-4 h-4" />
+                <span>{editingId ? 'Simpan Revisi Data' : 'Catat Penjualan'}</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

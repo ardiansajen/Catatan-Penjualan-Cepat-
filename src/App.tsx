@@ -110,8 +110,10 @@ export default function App() {
       setRecords(prev =>
         prev.map(r => (r.id === editId ? { ...r, ...saleData } : r))
       );
+      showToast(`✅ Revisi berhasil disimpan! Data transaksi partner "${saleData.partner}" telah diperbarui.`);
     } else {
       handleAddSale(saleData);
+      showToast(`✅ Catatan penjualan partner "${saleData.partner}" berhasil dicatat!`);
     }
     setEditingId(null);
     setInitialFormData(null);
@@ -314,6 +316,7 @@ export default function App() {
         editingId={editingId}
         existingPartners={existingPartners}
         existingItemTypes={existingItemTypes}
+        onDelete={handleDeleteClick}
       />
 
       {/* Export & WhatsApp Share Modal */}

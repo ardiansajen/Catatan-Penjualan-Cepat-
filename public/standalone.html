@@ -144,6 +144,27 @@
         </div>
       </div>
 
+      <!-- BANNER MODE REVISI TRANSAKSI -->
+      <div id="editModeBanner" class="hidden mb-4 p-3.5 bg-blue-950/80 border border-blue-500/60 rounded-xl text-xs text-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-lg animate-fadeIn">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-lg bg-blue-500/30 text-blue-400 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </div>
+          <div>
+            <div class="font-bold text-white text-xs sm:text-sm">
+              Mode Revisi: <span id="editTargetId" class="font-mono text-amber-300"></span> (<span id="editTargetPartner"></span>)
+            </div>
+            <p class="text-[11px] text-blue-300">
+              Ubah data transaksi yang keliru di kolom bawah, lalu klik tombol <strong>"Simpan Revisi"</strong>.
+            </p>
+          </div>
+        </div>
+        <button type="button" onclick="cancelEditMode()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold border border-slate-600 transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap">
+          <i class="fa-solid fa-xmark"></i>
+          <span>Batal Revisi</span>
+        </button>
+      </div>
+
       <form id="salesForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <!-- Partner / Toko -->
@@ -358,7 +379,7 @@
               <th class="py-3 px-3 text-right">Harga Satuan</th>
               <th class="py-3 px-3 text-right">Total Nominal</th>
               <th class="py-3 px-3 text-center">Status</th>
-              <th class="py-3 px-3 text-center">Aksi</th>
+              <th class="py-3 px-3 text-center w-40">Aksi (Revisi / Hapus)</th>
             </tr>
           </thead>
           <tbody id="salesTableBody" class="divide-y divide-slate-800/60 bg-slate-900/40">
@@ -655,6 +676,71 @@
       calculateSubtotal();
     }
 
+    let editingRecordId = null;
+
+    function editRecord(id) {
+      const r = salesRecords.find(x => x.id === id);
+      if (!r) return;
+
+      editingRecordId = id;
+      document.getElementById('partnerInput').value = r.partner || '';
+      document.getElementById('itemTypeInput').value = r.itemType || '';
+      document.getElementById('brandInput').value = r.brand || 'COLORFUL';
+      document.getElementById('categoryInput').value = r.category || 'VGA / Graphic Card';
+      document.getElementById('qtyInput').value = r.quantity || 1;
+      document.getElementById('priceInput').value = r.unitPrice || '';
+      document.getElementById('statusInput').value = (r.status || 'selesai').toLowerCase();
+      document.getElementById('notesInput').value = r.notes || '';
+      calculateSubtotal();
+
+      // Tampilkan Banner Mode Revisi
+      const banner = document.getElementById('editModeBanner');
+      const targetIdSpan = document.getElementById('editTargetId');
+      const targetPartnerSpan = document.getElementById('editTargetPartner');
+      if (banner && targetIdSpan && targetPartnerSpan) {
+        targetIdSpan.textContent = r.id;
+        targetPartnerSpan.textContent = r.partner || 'Toko';
+        banner.classList.remove('hidden');
+      }
+
+      // Ubah tampilan tombol Simpan
+      const submitBtn = document.getElementById('saveSubmitBtn');
+      const submitText = document.getElementById('saveBtnText');
+      const submitIcon = document.getElementById('saveBtnIcon');
+      if (submitBtn && submitText) {
+        submitBtn.className = "w-full sm:w-auto px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm shadow-lg shadow-amber-600/30 flex items-center justify-center gap-2 transition active:scale-95";
+        submitText.textContent = "Simpan Revisi Data";
+        if (submitIcon) submitIcon.className = "fa-solid fa-check";
+      }
+
+      // Scroll halus ke form
+      document.getElementById('salesForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('partnerInput').focus();
+      showToast('Data transaksi ' + id + ' siap direvisi di form atas.');
+    }
+
+    function cancelEditMode() {
+      editingRecordId = null;
+      const banner = document.getElementById('editModeBanner');
+      if (banner) banner.classList.add('hidden');
+
+      const submitBtn = document.getElementById('saveSubmitBtn');
+      const submitText = document.getElementById('saveBtnText');
+      const submitIcon = document.getElementById('saveBtnIcon');
+      if (submitBtn && submitText) {
+        submitBtn.className = "w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition active:scale-95";
+        submitText.textContent = "Simpan Transaksi";
+        if (submitIcon) submitIcon.className = "fa-solid fa-plus";
+      }
+
+      // Reset form
+      document.getElementById('itemTypeInput').value = '';
+      document.getElementById('qtyInput').value = '1';
+      document.getElementById('priceInput').value = '';
+      document.getElementById('notesInput').value = '';
+      calculateSubtotal();
+    }
+
     function handleFormSubmit(e) {
       e.preventDefault();
       const partner = document.getElementById('partnerInput').value.trim();
@@ -667,6 +753,51 @@
       const status = document.getElementById('statusInput').value;
       const notes = document.getElementById('notesInput').value.trim();
 
+      // JIKA DALAM MODE REVISI TRANSAKSI
+      if (editingRecordId) {
+        const existingIndex = salesRecords.findIndex(r => r.id === editingRecordId);
+        if (existingIndex !== -1) {
+          const updatedRecord = {
+            ...salesRecords[existingIndex],
+            partner,
+            itemType,
+            brand,
+            category,
+            quantity,
+            unitPrice,
+            totalAmount,
+            status,
+            notes
+          };
+          salesRecords[existingIndex] = updatedRecord;
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(salesRecords)); } catch(err){}
+          renderTable();
+          updateStats();
+
+          const targetId = editingRecordId;
+
+          if (isGasEnvironment) {
+            const btn = document.getElementById('saveBtnText');
+            btn.textContent = 'Menyimpan Revisi...';
+            google.script.run
+              .withSuccessHandler(function() {
+                showToast('Revisi transaksi ' + targetId + ' tersimpan di Google Sheets!');
+                cancelEditMode();
+              })
+              .withFailureHandler(function(err) {
+                btn.textContent = 'Simpan Revisi Data';
+                showToast('Gagal simpan revisi ke Sheet: ' + err, true);
+              })
+              .apiUpdateSale(updatedRecord);
+          } else {
+            showToast('Revisi transaksi ' + targetId + ' berhasil disimpan!');
+            cancelEditMode();
+          }
+        }
+        return;
+      }
+
+      // JIKA TRANSAKSI BARU
       const newRecord = {
         id: 'TX-' + Math.floor(1000 + Math.random() * 9000),
         date: new Date().toISOString().slice(0, 16),
@@ -711,20 +842,29 @@
     }
 
     function deleteRecord(id) {
-      if (confirm('Hapus transaksi ini dari daftar dan Google Sheets?')) {
+      const target = salesRecords.find(r => r.id === id);
+      const name = target ? (target.partner + ' - ' + target.itemType) : id;
+      if (confirm('Hapus catatan transaksi "' + name + '"?\n\nTransaksi akan dihapus dari tabel dan dari Google Sheets jika ada kesalahan input.')) {
         salesRecords = salesRecords.filter(r => r.id !== id);
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(salesRecords)); } catch(e){}
         renderTable();
         updateStats();
 
+        if (editingRecordId === id) {
+          cancelEditMode();
+        }
+
         if (isGasEnvironment) {
           google.script.run
             .withSuccessHandler(function() {
-              showToast('Transaksi dihapus dari Google Sheets!');
+              showToast('Transaksi ' + id + ' berhasil dihapus dari Google Sheets!');
+            })
+            .withFailureHandler(function(err) {
+              showToast('Gagal menghapus dari Sheet: ' + err, true);
             })
             .apiDeleteSale(id);
         } else {
-          showToast('Transaksi telah dihapus');
+          showToast('Transaksi ' + id + ' telah dihapus');
         }
       }
     }
@@ -807,11 +947,16 @@
             <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-400">${formatRupiah(r.totalAmount)}</td>
             <td class="py-2.5 px-3 text-center">${statusBadge}</td>
             <td class="py-2.5 px-3 text-center whitespace-nowrap">
-              <button onclick="shareRowWhatsApp('${r.id}')" title="Kirim Nota ke WhatsApp" class="text-slate-500 hover:text-emerald-400 p-1.5 rounded transition opacity-80 group-hover:opacity-100 mr-1">
-                <i class="fa-brands fa-whatsapp text-emerald-400"></i>
+              <button onclick="editRecord('${r.id}')" title="Revisi / Ubah Data Transaksi Ini" class="text-amber-300 bg-amber-950/60 hover:bg-amber-900/90 border border-amber-700/60 px-2 py-1 rounded-lg text-xs font-bold transition mr-1 cursor-pointer inline-flex items-center gap-1 shadow-xs">
+                <i class="fa-solid fa-pen-to-square text-amber-400"></i>
+                <span>Revisi</span>
               </button>
-              <button onclick="deleteRecord('${r.id}')" title="Hapus transaksi" class="text-slate-500 hover:text-rose-400 p-1.5 rounded transition opacity-80 group-hover:opacity-100">
-                <i class="fa-regular fa-trash-can"></i>
+              <button onclick="deleteRecord('${r.id}')" title="Hapus Transaksi Ini Jika Keliru" class="text-rose-300 bg-rose-950/50 hover:bg-rose-900/80 border border-rose-800/60 px-2 py-1 rounded-lg text-xs font-semibold transition mr-1 cursor-pointer inline-flex items-center gap-1">
+                <i class="fa-regular fa-trash-can text-rose-400"></i>
+                <span>Hapus</span>
+              </button>
+              <button onclick="shareRowWhatsApp('${r.id}')" title="Kirim Nota ke WhatsApp" class="text-slate-400 hover:text-emerald-400 hover:bg-emerald-400/10 p-1.5 rounded-lg transition opacity-90 group-hover:opacity-100 cursor-pointer">
+                <i class="fa-brands fa-whatsapp text-emerald-400"></i>
               </button>
             </td>
           </tr>

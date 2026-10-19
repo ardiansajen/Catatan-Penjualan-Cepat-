@@ -43,6 +43,8 @@ function onOpen() {
     .addItem("📥 Isi Contoh Data (Mugen Comp / PC Part)", "loadDemoData")
     .addItem("📊 Hitung Ulang Total & Statistik", "recalculateStats")
     .addSeparator()
+    .addItem("🗑️ Hapus Transaksi Tertentu (via ID)", "promptDeleteTransactionById")
+    .addSeparator()
     .addItem("📱 Setup Bot Telegram & Notifikasi", "showTelegramConfigModal")
     .addItem("🚀 Tes Kirim Notifikasi ke Telegram", "testSendTelegramNotification")
     .addItem("📊 Kirim Rekap Hari Ini ke Telegram", "sendTodaySummaryToTelegram")
@@ -467,6 +469,29 @@ function clearDataTransactions() {
 }
 
 /**
+ * 6. HAPUS TRANSAKSI TERTENTU VIA ID DARI SPREADSHEET
+ */
+function promptDeleteTransactionById() {
+  var ui = SpreadsheetApp.getUi();
+  var prompt = ui.prompt(
+    "Hapus Transaksi",
+    "Masukkan No ID transaksi yang ingin dihapus jika ada kesalahan input (Contoh: TX-1001):",
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (prompt.getSelectedButton() !== ui.Button.OK) return;
+  var targetId = prompt.getResponseText().trim();
+  if (!targetId) return;
+
+  var result = apiDeleteSale(targetId);
+  if (result.status === "success") {
+    ui.alert("Berhasil", "Transaksi dengan ID " + targetId + " berhasil dihapus dari sheet dan statistik rekap bulanan telah diperbarui.", ui.ButtonSet.OK);
+  } else {
+    ui.alert("Tidak Ditemukan", "Transaksi dengan ID " + targetId + " tidak ditemukan di kolom No ID.", ui.ButtonSet.OK);
+  }
+}
+
+/**
  * 6. TAMPILKAN PETUNJUK PENGGUNAAN & WEB APP
  */
 function showInstructions() {
@@ -591,6 +616,25 @@ function doPost(e) {
       });
     }
 
+    if (action === "updateSale" && payload.data) {
+      var updateResult = apiUpdateSale(payload.data);
+      return createJsonResponse({
+        status: "success",
+        message: "Transaksi ID " + payload.data.id + " berhasil diperbarui di Google Sheets!",
+        id: payload.data.id
+      });
+    }
+
+    if (action === "deleteSale" && (payload.id || (payload.data && payload.data.id))) {
+      var targetId = payload.id || payload.data.id;
+      var deleteResult = apiDeleteSale(targetId);
+      return createJsonResponse({
+        status: "success",
+        message: "Transaksi ID " + targetId + " berhasil dihapus dari Google Sheets!",
+        id: targetId
+      });
+    }
+
     if (action === "clearSheet") {
       apiClearAllSales();
       return createJsonResponse({
@@ -691,6 +735,44 @@ function apiSaveSale(record) {
 }
 
 /**
+ * Merevisi / Mengubah data transaksi yang sudah tersimpan di Google Sheets berdasarkan No ID
+ */
+function apiUpdateSale(record) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_SALES);
+  if (!sheet) {
+    setupSheet();
+    sheet = ss.getSheetByName(SHEET_NAME_SALES);
+  }
+
+  if (sheet.getLastRow() < 2) {
+    return apiSaveSale(record);
+  }
+
+  var targetId = String(record.id || "").trim();
+  var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0]).trim() === targetId) {
+      var rowNum = i + 2;
+      var updatedRow = formatSaleRecordToRow(record);
+      sheet.getRange(rowNum, 1, 1, 13).setValues([updatedRow]);
+
+      try {
+        generateMonthlySummary();
+      } catch (err) {
+        Logger.log("Recalculate summary error: " + err);
+      }
+
+      return { status: "success", id: targetId, row: rowNum, message: "Transaksi berhasil diperbarui" };
+    }
+  }
+
+  // Jika ID tidak ditemukan (misal data baru), simpan sebagai baris baru
+  return apiSaveSale(record);
+}
+
+/**
  * Menghapus transaksi berdasarkan ID
  */
 function apiDeleteSale(saleId) {
@@ -702,7 +784,10 @@ function apiDeleteSale(saleId) {
   for (var i = 0; i < values.length; i++) {
     if (String(values[i][0]) === String(saleId)) {
       sheet.deleteRow(i + 2);
-      return { status: "success" };
+      try {
+        generateMonthlySummary();
+      } catch (err) {}
+      return { status: "success", id: saleId };
     }
   }
   return { status: "not_found" };
@@ -1096,22 +1181,85 @@ function getEmbeddedWebAppHtml() {
 '      calculateSubtotal();\n' +
 '    }\n' +
 '\n' +
+'    let editingRecordId = null;\n' +
+'\n' +
+'    function editRecord(id) {\n' +
+'      const r = salesRecords.find(x => x.id === id);\n' +
+'      if (!r) return;\n' +
+'      editingRecordId = id;\n' +
+'      document.getElementById("partnerInput").value = r.partner || "";\n' +
+'      document.getElementById("itemTypeInput").value = r.itemType || "";\n' +
+'      document.getElementById("brandInput").value = r.brand || "COLORFUL";\n' +
+'      document.getElementById("categoryInput").value = r.category || "VGA / Graphic Card";\n' +
+'      document.getElementById("qtyInput").value = r.quantity || 1;\n' +
+'      document.getElementById("priceInput").value = r.unitPrice || "";\n' +
+'      document.getElementById("statusInput").value = (r.status || "selesai").toLowerCase();\n' +
+'      document.getElementById("notesInput").value = r.notes || "";\n' +
+'      calculateSubtotal();\n' +
+'      const btnText = document.getElementById("saveBtnText");\n' +
+'      if (btnText) btnText.textContent = "Simpan Revisi #" + id;\n' +
+'      document.getElementById("salesForm").scrollIntoView({ behavior: "smooth" });\n' +
+'      showToast("Data transaksi " + id + " siap direvisi.");\n' +
+'    }\n' +
+'\n' +
 '    function handleFormSubmit(e) {\n' +
 '      e.preventDefault();\n' +
 '      const q = Number(document.getElementById("qtyInput").value) || 1;\n' +
 '      const p = Number(document.getElementById("priceInput").value) || 0;\n' +
+'      const partner = document.getElementById("partnerInput").value.trim();\n' +
+'      const itemType = document.getElementById("itemTypeInput").value.trim();\n' +
+'      const brand = document.getElementById("brandInput").value.trim() || "LAINNYA";\n' +
+'      const category = document.getElementById("categoryInput").value.trim();\n' +
+'      const status = document.getElementById("statusInput").value;\n' +
+'      const notes = document.getElementById("notesInput").value.trim();\n' +
+'\n' +
+'      if (editingRecordId) {\n' +
+'        const idx = salesRecords.findIndex(x => x.id === editingRecordId);\n' +
+'        if (idx !== -1) {\n' +
+'          salesRecords[idx] = {\n' +
+'            ...salesRecords[idx],\n' +
+'            partner: partner,\n' +
+'            itemType: itemType,\n' +
+'            brand: brand,\n' +
+'            category: category,\n' +
+'            quantity: q,\n' +
+'            unitPrice: p,\n' +
+'            totalAmount: q * p,\n' +
+'            status: status,\n' +
+'            notes: notes\n' +
+'          };\n' +
+'          const updated = salesRecords[idx];\n' +
+'          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(salesRecords)); } catch(err){}\n' +
+'          renderTable(); updateStats();\n' +
+'          const targetId = editingRecordId;\n' +
+'          editingRecordId = null;\n' +
+'          document.getElementById("saveBtnText").textContent = "Simpan Transaksi";\n' +
+'          document.getElementById("itemTypeInput").value = "";\n' +
+'          document.getElementById("qtyInput").value = "1";\n' +
+'          document.getElementById("priceInput").value = "";\n' +
+'          document.getElementById("notesInput").value = "";\n' +
+'          calculateSubtotal();\n' +
+'          if (isGasEnvironment) {\n' +
+'            google.script.run.withSuccessHandler(function() {\n' +
+'              showToast("Revisi transaksi " + targetId + " berhasil disimpan ke Sheets!");\n' +
+'            }).apiUpdateSale(updated);\n' +
+'          } else { showToast("Revisi berhasil disimpan!"); }\n' +
+'          return;\n' +
+'        }\n' +
+'      }\n' +
+'\n' +
 '      const rec = {\n' +
 '        id: "TX-" + Math.floor(1000 + Math.random() * 9000),\n' +
 '        date: new Date().toISOString().slice(0, 16),\n' +
-'        partner: document.getElementById("partnerInput").value.trim(),\n' +
-'        itemType: document.getElementById("itemTypeInput").value.trim(),\n' +
-'        brand: document.getElementById("brandInput").value.trim() || "LAINNYA",\n' +
-'        category: document.getElementById("categoryInput").value.trim(),\n' +
+'        partner: partner,\n' +
+'        itemType: itemType,\n' +
+'        brand: brand,\n' +
+'        category: category,\n' +
 '        quantity: q,\n' +
 '        unitPrice: p,\n' +
 '        totalAmount: q * p,\n' +
-'        status: document.getElementById("statusInput").value,\n' +
-'        notes: document.getElementById("notesInput").value.trim()\n' +
+'        status: status,\n' +
+'        notes: notes\n' +
 '      };\n' +
 '      salesRecords.unshift(rec);\n' +
 '      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(salesRecords)); } catch(err){}\n' +
@@ -1167,7 +1315,7 @@ function getEmbeddedWebAppHtml() {
 '      }\n' +
 '      tbody.innerHTML = flt.map(r => {\n' +
 '        const badge = r.status === "selesai" ? "<span class=\\"px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20\\">SELESAI</span>" : (r.status === "pending" ? "<span class=\\"px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20\\">PENDING</span>" : "<span class=\\"px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20\\">DIKIRIM</span>");\n' +
-'        return "<tr class=\\"hover:bg-slate-800/40 transition\\"><td class=\\"py-2.5 px-3 font-mono text-[11px] text-slate-400\\">" + r.id + "</td><td class=\\"py-2.5 px-3 text-[11px] text-slate-400\\">" + (r.date||"").replace("T"," ") + "</td><td class=\\"py-2.5 px-3 font-medium text-slate-200\\">" + r.partner + "</td><td class=\\"py-2.5 px-3\\"><span class=\\"px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700\\">" + r.brand + "</span></td><td class=\\"py-2.5 px-3 text-slate-200 font-medium\\">" + r.itemType + "</td><td class=\\"py-2.5 px-3 text-center font-mono text-slate-300\\">" + r.quantity + "</td><td class=\\"py-2.5 px-3 text-right font-mono text-slate-400\\">" + formatRupiah(r.unitPrice) + "</td><td class=\\"py-2.5 px-3 text-right font-mono font-bold text-emerald-400\\">" + formatRupiah(r.totalAmount) + "</td><td class=\\"py-2.5 px-3 text-center\\">" + badge + "</td><td class=\\"py-2.5 px-3 text-center\\"><button onclick=\\"deleteRecord(\'" + r.id + "\')\\" class=\\"text-slate-500 hover:text-rose-400 p-1 rounded transition\\"><i class=\\"fa-regular fa-trash-can\\"></i></button></td></tr>";\n' +
+'        return "<tr class=\\"hover:bg-slate-800/40 transition\\"><td class=\\"py-2.5 px-3 font-mono text-[11px] text-slate-400\\">" + r.id + "</td><td class=\\"py-2.5 px-3 text-[11px] text-slate-400\\">" + (r.date||"").replace("T"," ") + "</td><td class=\\"py-2.5 px-3 font-medium text-slate-200\\">" + r.partner + "</td><td class=\\"py-2.5 px-3\\"><span class=\\"px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700\\">" + r.brand + "</span></td><td class=\\"py-2.5 px-3 text-slate-200 font-medium\\">" + r.itemType + "</td><td class=\\"py-2.5 px-3 text-center font-mono text-slate-300\\">" + r.quantity + "</td><td class=\\"py-2.5 px-3 text-right font-mono text-slate-400\\">" + formatRupiah(r.unitPrice) + "</td><td class=\\"py-2.5 px-3 text-right font-mono font-bold text-emerald-400\\">" + formatRupiah(r.totalAmount) + "</td><td class=\\"py-2.5 px-3 text-center\\">" + badge + "</td><td class=\\"py-2.5 px-3 text-center whitespace-nowrap\\"><button onclick=\\"editRecord(\'" + r.id + "\')\\" title=\\"Revisi Transaksi\\" class=\\"text-amber-400 hover:text-amber-300 font-bold p-1 mr-2 text-[11px] cursor-pointer\\"><i class=\\"fa-solid fa-pen-to-square\\"></i> Revisi</button><button onclick=\\"deleteRecord(\'" + r.id + "\')\\" title=\\"Hapus Transaksi\\" class=\\"text-rose-400 hover:text-rose-300 p-1 rounded transition cursor-pointer\\"><i class=\\"fa-regular fa-trash-can\\"></i></button></td></tr>";\n' +
 '      }).join("");\n' +
 '    }\n' +
 '\n' +
